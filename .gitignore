@@ -25,4 +25,14 @@ eigen
 .vscode/*
 
 # Bazel files
-/bazel-*
+/bazel-**.sw?
+.*.sw?
+*~
+*.swn
+*.swo
+*.swi
+*.swp
+*.swx
+*.bak
+*.tmp
+*.log
