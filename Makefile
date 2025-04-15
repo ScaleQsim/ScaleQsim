@@ -4,13 +4,29 @@ EIGEN_URL = "https://gitlab.com/libeigen/eigen/-/archive/"
 TARGETS = qsim
 TESTS = run-cxx-tests
 
-CXX=g++
-NVCC=nvcc
-HIPCC=hipcc
+CXX = g++
+NVCC = nvcc
+HIPCC = hipcc
+
+# KCJ
+# KCJ - Conda 환경의 MPI 사용
+MPICXX = $(MPI_HOME)/bin/mpicxx
+MPICC = $(MPI_HOME)/bin/mpicc
+CC = $(MPI_HOME)/bin/mpicc
+#CXX = $(MPI_HOME)/bin/mpicxx
+
+export MPICC=$(MPI_HOME)/bin/mpicc
+export MPICXX=$(MPI_HOME)/bin/mpicxx
+export CC=$(MPI_HOME)/bin/mpicc
+#export CXX=$(MPI_HOME)/bin/mpicxx
+
 
 CXXFLAGS = -O3 -fopenmp
 ARCHFLAGS = -march=native
-NVCCFLAGS = -O3
+NVCCFLAGS = -O3 -I/global/common/software/nersc9/nccl/2.21.5/include \
+            -L/global/common/software/nersc9/nccl/2.21.5/lib -lnccl \
+            -L$(MPI_HOME)/lib -lmpi
+
 HIPCCFLAGS = -O3
 
 # CUQUANTUM_ROOT should be set.
@@ -41,7 +57,7 @@ qsim:
 
 .PHONY: qsim-cuda
 qsim-cuda:
-	$(MAKE) -C apps/ qsim-cuda
+	$(MAKE) -C apps/ qsim-cuda NVCCFLAGS="$(NVCCFLAGS)"
 
 .PHONY: qsim-custatevec
 qsim-custatevec:
@@ -61,7 +77,7 @@ cxx-tests: eigen
 
 .PHONY: cuda-tests
 cuda-tests:
-	$(MAKE) -C tests/ cuda-tests
+	$(MAKE) -C tests/ cuda-tests NVCCFLAGS="$(NVCCFLAGS)"
 
 .PHONY: custatevec-tests
 custatevec-tests:
@@ -77,7 +93,7 @@ run-cxx-tests: cxx-tests
 
 .PHONY: run-cuda-tests
 run-cuda-tests: cuda-tests
-	$(MAKE) -C tests/ run-cuda-tests
+	$(MAKE) -C tests/ run-cuda-tests NVCCFLAGS="$(NVCCFLAGS)"
 
 .PHONY: run-custatevec-tests
 run-custatevec-tests: custatevec-tests

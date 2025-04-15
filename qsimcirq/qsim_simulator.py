@@ -80,7 +80,7 @@ class QSimOptions:
     gpu_mode: int = 0
     gpu_state_threads: int = 512
     gpu_data_blocks: int = 16
-    verbosity: int = 0
+    verbosity: int = 1
     denormals_are_zeros: bool = False
 
     def as_dict(self):
@@ -168,6 +168,7 @@ class QSimSimulator(
         self.qsim_options = QSimOptions().as_dict()
         self.qsim_options.update(qsim_options)
         self.noise = cirq.NoiseModel.from_noise_model_like(noise)
+        print(f"KCJ: qsim_simulator")
 
         # module to use for simulation
         if self.qsim_options["g"]:
@@ -179,6 +180,7 @@ class QSimSimulator(
                         "locally."
                     )
                 else:
+                    print(f"KCJ: Using GPU")
                     self._sim_module = qsim_gpu
             else:
                 if qsim_custatevec is None:
@@ -189,6 +191,7 @@ class QSimSimulator(
                         "to compile qsim locally."
                     )
                 else:
+                    print(f"KCJ: Using cuStateVec > But I don't chose custatevec")
                     self._sim_module = qsim_custatevec
         else:
             self._sim_module = qsim
@@ -223,7 +226,7 @@ class QSimSimulator(
         """
         param_resolver = param_resolver or cirq.ParamResolver({})
         solved_circuit = cirq.resolve_parameters(circuit, param_resolver)
-
+        print(f"KCJ: Run function()")
         return self._sample_measure_results(solved_circuit, repetitions)
 
     def _sample_measure_results(
@@ -262,6 +265,7 @@ class QSimSimulator(
         # Compute indices of measured qubits
         ordered_qubits = cirq.QubitOrder.DEFAULT.order_for(all_qubits)
         num_qubits = len(ordered_qubits)
+        print(f"KCJ: number of Qubit: {num_qubits}")
 
         qubit_map = {qubit: index for index, qubit in enumerate(ordered_qubits)}
 
@@ -331,8 +335,10 @@ class QSimSimulator(
                 translator_fn_name,
                 cirq.QubitOrder.DEFAULT,
             )
+            #print("KCJ: translate_cirq_to_qsim start 1 ? ")
             options["s"] = self.get_seed()
             raw_results = self._sim_module.qsim_sample_final(options, repetitions)
+            #print(f"KCJ: raw_result: {raw_results}")
             full_results = np.array(
                 [
                     [bool(result & (1 << q)) for q in reversed(range(num_qubits))]
@@ -360,10 +366,12 @@ class QSimSimulator(
                 translator_fn_name,
                 cirq.QubitOrder.DEFAULT,
             )
+            #print("KCJ: translate_cirq_to_qsim start 2 ? ")
             measurements = np.empty(shape=(repetitions, num_bits), dtype=int)
             for i in range(repetitions):
                 options["s"] = self.get_seed()
                 measurements[i] = sampler_fn(options)
+                #print(f"KCJ: Current state vector for repetition {i}: {measurements[i]}")
 
             for m in meas_infos:
                 results[m.key][:, m.idx, :] = (
@@ -449,6 +457,8 @@ class QSimSimulator(
 
         # Add noise to the circuit if a noise model was provided.
         all_qubits = program.all_qubits()
+        print(f"KCJ: All qubits in the program: {all_qubits}")
+        
         program = qsimc.QSimCircuit(
             self.noise.noisy_moments(program, sorted(all_qubits))
             if self.noise is not cirq.NO_NOISE
@@ -459,26 +469,36 @@ class QSimSimulator(
         options.update(self.qsim_options)
 
         param_resolvers = cirq.to_resolvers(params)
+        
         # qsim numbers qubits in reverse order from cirq
         cirq_order = cirq.QubitOrder.as_qubit_order(qubit_order).order_for(all_qubits)
+        print(f"KCJ: Cirq order of qubits: {cirq_order}")
+        
         qsim_order = list(reversed(cirq_order))
+        print(f"KCJ: QSim order of qubits (reversed Cirq order): {qsim_order}")
+        
         num_qubits = len(qsim_order)
+        print(f"KCJ: Number of qubits: {num_qubits}")
+        
         if isinstance(initial_state, np.ndarray):
             if initial_state.dtype != np.complex64:
                 raise TypeError(f"initial_state vector must have dtype np.complex64.")
             input_vector = initial_state.view(np.float32)
+            print(f"KCJ: Allocated state vector data (input_vector): {input_vector}")
+            '''
             if len(input_vector) != 2**num_qubits * 2:
                 raise ValueError(
                     f"initial_state vector size must match number of qubits."
                     f"Expected: {2**num_qubits * 2} Received: {len(input_vector)}"
                 )
-
+            '''
         if _needs_trajectories(program):
             translator_fn_name = "translate_cirq_to_qtrajectory"
             fullstate_simulator_fn = self._sim_module.qtrajectory_simulate_fullstate
         else:
             translator_fn_name = "translate_cirq_to_qsim"
             fullstate_simulator_fn = self._sim_module.qsim_simulate_fullstate
+            print("KCJ: translate_cirq_to_qsim")
 
         for prs in param_resolvers:
             solved_circuit = cirq.resolve_parameters(program, prs)
@@ -489,15 +509,23 @@ class QSimSimulator(
                 cirq_order,
             )
             options["s"] = self.get_seed()
-
+            
             if isinstance(initial_state, int):
+                print(f"KCJ: Initial state as integer: {initial_state}")
                 qsim_state = fullstate_simulator_fn(options, initial_state)
             elif isinstance(initial_state, np.ndarray):
+                print(f"KCJ: Initial state as ndarray: {input_vector}")
                 qsim_state = fullstate_simulator_fn(options, input_vector)
+            
+            # Debugging output
+            print(f"KCJ: Initial_state: {initial_state}")
+            print(f"KCJ: Current state vector (qsim_state): {qsim_state}")
+            
             assert qsim_state.dtype == np.float32
             assert qsim_state.ndim == 1
 
             yield prs, qsim_state.view(np.complex64), cirq_order
+
 
     def simulate_into_1d_array(
         self,
@@ -829,10 +857,32 @@ class QSimSimulator(
         # If the circuit is memoized, reuse the corresponding translated circuit.
         for original, translated, moment_indices in self._translated_circuits:
             if original == circuit:
+                #print("KCJ: Memoized Translated Circuit:", translated)
+                #print("KCJ: Memoized Moment Indices:", moment_indices)
                 return translated, moment_indices
 
+        # 회로변환 수행. 
         translator_fn = getattr(circuit, translator_fn_name)
         translated, moment_indices = translator_fn(qubit_order)
+        
+        # Print the translated data before caching and returning.
+        #print("KCJ: Translated Circuit:", translated, dir(translated))
+        #print("KCJ: Qubit order:", qubit_order)
+        #print("KCJ: Moment Indices:", moment_indices)
+        
+        #for gate in translated.gates:
+        #    print(gate.to_string())
+
+        #print("KCJ: Translated Circuit Gates:", translated.gates)
+        #print("KCJ: Number of Qubits:", translated.num_qubits)
+
+        '''
+        if hasattr(translated, 'to_string'):
+            print(translated.to_string())
+        elif hasattr(translated, 'to_dict'):
+            print(translated.to_dict())
+        '''
+    
         self._translated_circuits.append((circuit, translated, moment_indices))
 
         return translated, moment_indices

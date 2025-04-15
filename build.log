@@ -1,0 +1,11 @@
+make -C apps/ qsim
+make[1]: Entering directory '/pscratch/sd/s/sgkim/kcj/qsim/apps'
+mpicxx -o ./qsimh_base.x qsimh_base.cc -O3 -fopenmp -march=native
+mpicxx -o ./qsim_von_neumann.x qsim_von_neumann.cc -O3 -fopenmp -march=native
+mpicxx -o ./qsim_base.x qsim_base.cc -O3 -fopenmp -march=native
+mpicxx -o ./qsimh_amplitudes.x qsimh_amplitudes.cc -O3 -fopenmp -march=native
+mpicxx -o ./qsim_amplitudes.x qsim_amplitudes.cc -O3 -fopenmp -march=native
+make[1]: Leaving directory '/pscratch/sd/s/sgkim/kcj/qsim/apps'
+make -C pybind_interface/ pybind
+make[1]: Entering directory '/pscratch/sd/s/sgkim/kcj/qsim/pybind_interface'
+mpicxx basic/pybind_main_basic.cpp -o ../qsimcirq/qsim_basic`python3-config --extension-suffix` -O3 -fopenmp -Wall -shared -std=c++17 -fPIC `python3 -m pybind11 --includes`

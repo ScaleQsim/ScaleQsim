@@ -21,6 +21,11 @@
 #include <string>
 #include <vector>
 
+
+#include <fstream>
+#include <iostream>
+
+
 #include "../lib/bitstring.h"
 #include "../lib/channel.h"
 #include "../lib/expect.h"
@@ -31,6 +36,8 @@
 #include "../lib/qtrajectory.h"
 #include "../lib/run_qsim.h"
 #include "../lib/run_qsimh.h"
+
+
 
 using namespace qsim;
 
@@ -86,7 +93,9 @@ Cirq::GateCirq<float> create_gate(const qsim::Cirq::GateKind gate_kind,
                                   const unsigned time,
                                   const std::vector<unsigned>& qubits,
                                   const std::map<std::string, float>& params) {
-  switch (gate_kind) {
+    // printf("KCJ: pybind_main.cpp-create_gate: gate_kind %llu\n");
+
+switch (gate_kind) {
     case Cirq::kI1:
       return Cirq::I1<float>::Create(time, qubits[0]);
     case Cirq::kI2:
@@ -233,6 +242,8 @@ Cirq::GateCirq<float> create_matrix_gate(const unsigned time,
                                          const std::vector<unsigned>& qubits,
                                          const std::vector<float>& matrix) {
   switch (qubits.size()) {
+// KCJ: Not here
+  printf("KCJ: pybind_main: create_matrix_gate: qubits.size() : %llu\n", qubits.size());
   case 0:
     // Global phase gate.
     return Cirq::GlobalPhaseGate<float>::Create(time, matrix[0], matrix[1]);
@@ -529,6 +540,7 @@ class SimulatorHelper {
     if (!helper.is_valid || !helper.simulate(input_state)) {
       return {};
     }
+    printf("KCJ: pybind_main.cpp: simulate_fullstate() \n");
     return helper.release_state_to_python();
   }
 
@@ -629,7 +641,7 @@ class SimulatorHelper {
         auto evs = helper.get_expectation_value(counts);
         for (unsigned j = 0; j < evs.size(); ++j) {
           results[i][j] += evs[j];
-        }
+        } 
         begin = end;
       }
     }
@@ -678,7 +690,9 @@ class SimulatorHelper {
       }
 
       StateSpace state_space = factory.CreateStateSpace();
+      printf("KCJ: Pybind-CreateStateSpace() \n");
       state = state_space.Create(num_qubits);
+      //state = std::move(state_space.Create(num_qubits));
       is_valid = true;
 
       if (denormals_are_zeros) {
@@ -694,6 +708,7 @@ class SimulatorHelper {
 
   void init_state(uint64_t input_state) {
     StateSpace state_space = factory.CreateStateSpace();
+    printf("KCJ: Pybind(init_state) - CreateStateSpace() \n");
     state_space.SetAllZeros(state);
     state_space.SetAmpl(state, input_state, 1, 0);
   }
@@ -725,6 +740,7 @@ class SimulatorHelper {
 
   template <typename StateType>
   bool simulate(const StateType& input_state) {
+    printf("KCJ: pybind-simulate() - Call init_state\n");
     init_state(input_state);
     bool result = false;
 
@@ -778,14 +794,20 @@ class SimulatorHelper {
   }
 
   py::array_t<float> release_state_to_python() {
+   // printf("KCJ: pybind_main.cpp release_state_to_python() start\n");
     StateSpace state_space = factory.CreateStateSpace();
     state_space.InternalToNormalOrder(state);
     uint64_t fsv_size = 2 * (uint64_t{1} << num_qubits);
+
     if (state.requires_copy_to_host()) {
       auto* fsv = new float[state_space.MinSize(state.num_qubits())];
-      state_space.Copy(state, fsv);
-      // Cast on delete to silence warnings.
-      auto capsule = py::capsule(
+   
+    uint64_t min_size = state_space.MinSize(state.num_qubits());
+   // printf("KCJ: fsv_size: %llu, fsv (address): %p, MinSize: %llu\n", fsv_size, (void*)fsv, min_size);
+    //state_space.Copy(state, fsv);
+     
+      
+    auto capsule = py::capsule(
         fsv, [](void *data) { delete [] (float*)data; });
       return py::array_t<float>(fsv_size, fsv, capsule);
     } else {
