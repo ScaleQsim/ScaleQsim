@@ -1,6 +1,6 @@
 # ScaleQsim
 **ScaleQsim: A Highly Scalable Quantum Circuit Simulation Framework for Exascale HPC Systems**  
-(Submitted to SC'25)
+(Submitted to SIGMETRICS'26)
 
 ## Introduction
 ScaleQsim is a distributed full-state quantum circuit simulator designed for large-scale HPC systems.  
